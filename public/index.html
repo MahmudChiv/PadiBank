@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PadiBank</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 480px;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #00c853;
+            margin-bottom: 0.5rem;
+        }
+
+        .tagline {
+            color: #888;
+            margin-bottom: 3rem;
+            font-size: 0.95rem;
+        }
+
+        .phone-input {
+            width: 100%;
+            padding: 0.9rem 1rem;
+            border-radius: 12px;
+            border: 1px solid #333;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 2rem;
+            outline: none;
+        }
+
+        .phone-input:focus {
+            border-color: #00c853;
+        }
+
+        .mic-button {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: none;
+            background: #00c853;
+            cursor: pointer;
+            font-size: 2.5rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+
+        .mic-button:hover {
+            transform: scale(1.05);
+        }
+
+        .mic-button.recording {
+            background: #e53935;
+            animation: pulse 1s infinite;
+        }
+
+        .mic-button:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.08);
+            }
+        }
+
+        .status {
+            color: #888;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            min-height: 1.2rem;
+        }
+
+        .response-box {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: left;
+            display: none;
+        }
+
+        .response-box.visible {
+            display: block;
+        }
+
+        .transcript {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 0.8rem;
+        }
+
+        .transcript span {
+            color: #aaa;
+        }
+
+        .response-message {
+            color: #fff;
+            font-size: 1.05rem;
+            line-height: 1.6;
+        }
+
+        .intent-badge {
+            display: inline-block;
+            background: #00c85322;
+            color: #00c853;
+            border-radius: 20px;
+            padding: 0.2rem 0.8rem;
+            font-size: 0.75rem;
+            margin-bottom: 0.8rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">PadiBank 🏦</div>
+        <p class="tagline">Your voice, your money, your padi</p>
+
+        <input class="phone-input" type="tel" id="phoneInput" placeholder="Enter your phone number (e.g. 08012345678)"
+            value="08012345678" />
+
+        <button class="mic-button" id="micBtn">🎙️</button>
+
+        <p class="status" id="status">Press the mic and speak</p>
+
+        <div class="response-box" id="responseBox">
+            <div class="transcript">You said: <span id="transcriptText"></span></div>
+            <div class="intent-badge" id="intentBadge"></div>
+            <div class="response-message" id="responseMessage"></div>
+        </div>
+    </div>
+
+    <script>
+        const micBtn = document.getElementById('micBtn');
+        const status = document.getElementById('status');
+        const responseBox = document.getElementById('responseBox');
+        const transcriptText = document.getElementById('transcriptText');
+        const intentBadge = document.getElementById('intentBadge');
+        const responseMessage = document.getElementById('responseMessage');
+        const phoneInput = document.getElementById('phoneInput');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        micBtn.addEventListener('click', async () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    audioChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await sendToBackend(audioBlob);
+                    // Stop microphone
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                micBtn.classList.add('recording');
+                micBtn.textContent = '⏹️';
+                status.textContent = 'Recording... press again to stop';
+
+            } catch (err) {
+                status.textContent = 'Microphone access denied. Please allow mic access.';
+            }
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            isRecording = false;
+            micBtn.classList.remove('recording');
+            micBtn.textContent = '🎙️';
+            status.textContent = 'Processing...';
+            micBtn.disabled = true;
+        }
+
+        async function sendToBackend(audioBlob) {
+            const phone = phoneInput.value.trim();
+
+            if (!phone) {
+                status.textContent = 'Please enter your phone number first.';
+                micBtn.disabled = false;
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+                formData.append('phone', phone);
+
+                const response = await fetch('http://localhost:3000/voice/chat', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+                console.log('Full response:', data); // ADD THIS
+
+                // Show response
+                transcriptText.textContent = data.transcript;
+                intentBadge.textContent = data.intent;
+                responseMessage.textContent = data.message;
+                responseBox.classList.add('visible');
+                status.textContent = 'Done! Press mic to speak again';
+
+                // Speak the response aloud
+                speakResponse(data.message);
+
+            } catch (err) {
+                status.textContent = 'Something went wrong. Try again.';
+                console.error(err);
+            } finally {
+                micBtn.disabled = false;
+            }
+        }
+
+        function speakResponse(text) {
+            if (!text) return;
+
+            // Cancel any ongoing speech first
+            window.speechSynthesis.cancel();
+
+            // Small delay — Chrome needs this sometimes
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1;
+                utterance.volume = 1;
+
+                utterance.onerror = (e) => console.error('Speech error:', e);
+                utterance.onstart = () => console.log('Speaking...');
+
+                window.speechSynthesis.speak(utterance);
+            }, 100);
+        }
+    </script>
+</body>
+
+</html>
