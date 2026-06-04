@@ -14,6 +14,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as fs from 'fs';
 import { JwtGuard } from 'src/common/guards/jwt.guard';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('voice')
 export class VoiceController {
@@ -21,6 +22,7 @@ export class VoiceController {
     private readonly aiService: AiService,
     private readonly bankingService: BankingService,
     private readonly voiceService: VoiceService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('chat')
@@ -55,19 +57,28 @@ export class VoiceController {
         case 'TRANSFER_MONEY':
           if (!intent.recipient || !intent.amount)
             result = {
-              message: 'Please say who you want to send money to and how much.',
+              message: 'Please indicate who you want to send to and how much.',
             };
 
+          const fullName = intent.recipient.split(' ');
+          const receiverAccount = fullName[1]
+            ? await this.prisma.user.findFirst({
+                where: { firstName: fullName[0], lastName: fullName[1] },
+                include: { account: true },
+              })
+            : await this.prisma.user.findFirst({
+                where: { firstName: fullName[0] },
+                include: { account: true },
+              });
+
           result = await this.bankingService.transferMoney(phone, {
-            receiverName: intent.recipient,
+            receiverAccountNumber: receiverAccount?.account?.accountNumber,
             amount: intent.amount,
           });
           break;
 
         case 'TRANSACTION_HISTORY':
-          result = await this.bankingService.getTransactionHistory(
-            phone,
-          );
+          result = await this.bankingService.getTransactionHistory(phone);
           break;
 
         default:

@@ -3,9 +3,10 @@ import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name)
+  
   constructor(
     private readonly mailService: MailerService,
-    private readonly logger = new Logger(MailService.name),
   ) {}
 
   async sendVerificationMail(to: string, code: string, firstName: string) {

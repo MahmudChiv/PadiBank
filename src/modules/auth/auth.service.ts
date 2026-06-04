@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +13,8 @@ import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
@@ -35,8 +38,8 @@ export class AuthService {
         1000000000 + Math.random() * 9000000000,
       ).toLocaleString();
 
-      const existingAccountNumber = this.prisma.account.findUnique({
-        where: { accountNumber },
+      const existingAccountNumber = await this.prisma.account.findUnique({
+        where: { accountNumber: accountNumber },
       });
 
       if (!existingAccountNumber) isUnique = true;
@@ -56,7 +59,9 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const userExist = await this.getUserByPhone(registerDto.phone);
+    const userExist = await this.prisma.user.findUnique({
+      where: { phone: registerDto.phone },
+    });
     if (userExist)
       throw new ConflictException(
         'A user with this phone number already exist!',
@@ -126,7 +131,8 @@ export class AuthService {
   async login(phone: string, pin: string) {
     const user = await this.getUserByPhone(phone);
 
-    if (user.pin !== pin) throw new UnauthorizedException('Incorrect pin!');
+    const isMatch = await bcrypt.compare(pin, user.pin)
+    if (!isMatch) throw new UnauthorizedException('Incorrect pin!!');
 
     const payload = {
       sub: user.id,

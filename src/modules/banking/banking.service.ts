@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransferMoneyDto } from './dto/transferMoney.dto';
 
@@ -16,22 +20,39 @@ export class BankingService {
     return user;
   }
 
+  async 
+
+  async getUserByAccNo(accountNumber: string) {
+    const account = this.prisma.account.findUnique({
+      where: { accountNumber: accountNumber },
+      include: { user: true },
+    });
+
+    if (!account)
+      throw new BadRequestException(`No registered user with ${accountNumber}`);
+
+    return account;
+  }
+
   //Check Account Balance
   async checkBalance(phone: string) {
     const user = await this.getUserByPhone(phone);
 
     return {
       status: 'success',
-      name: user.name,
-      balance: user.account?.balance,
-      message: `${user.name}, your current balance is ₦${user.account!.balance.toLocaleString()}.`,
+      name: `${user.firstName} ${user.lastName}`,
+      balance: user.account!.balance,
+      message: `${user.firstName}, your current balance is ₦${user.account!.balance.toLocaleString()}.`,
     };
   }
 
   // Transfer Money
-  async transferMoney(authenticatedUserPhone, transferDto: TransferMoneyDto) {
+  async transferMoney(
+    authenticatedUserPhone: string,
+    transferDto: TransferMoneyDto,
+  ) {
     const sender = await this.getUserByPhone(authenticatedUserPhone);
-    const { receiverName, amount } = transferDto;
+    const { receiverAccountNumber, amount } = transferDto;
 
     if (sender.account?.balance! < amount) {
       return {
@@ -40,13 +61,12 @@ export class BankingService {
       };
     }
 
-    const recipient = await this.prisma.user.findFirst({
-      where: { name: { contains: receiverName } },
-      include: { account: true },
-    });
+    const recipient = await this.getUserByAccNo(receiverAccountNumber!);
 
     if (!recipient)
-      throw new NotFoundException(`No user with ${receiverName} found`);
+      throw new NotFoundException(
+        `No user with ${receiverAccountNumber} found`,
+      );
 
     await this.prisma.$transaction([
       //Deduct from sender
@@ -57,7 +77,7 @@ export class BankingService {
 
       //Add to Recipient
       this.prisma.account.update({
-        where: { id: recipient.account?.id },
+        where: { id: recipient.id },
         data: { balance: { increment: amount } },
       }),
 
@@ -67,24 +87,24 @@ export class BankingService {
           accountId: sender.account?.id!,
           type: 'DEBIT',
           amount,
-          description: `Transfer to ${receiverName}`,
+          description: `Transfer to ${receiverAccountNumber}`,
         },
       }),
 
       //Record transaction for receiver
       this.prisma.transaction.create({
         data: {
-          accountId: recipient.account?.id!,
+          accountId: recipient.id!,
           type: 'CREDIT',
           amount,
-          description: `Recieved money from ${sender.name}`,
+          description: `Recieved money from ${sender.firstName} ${sender.lastName}`,
         },
       }),
     ]);
 
     return {
       status: 'success',
-      message: `You've successfully transferred ${amount} to ${receiverName}. Your new balance is ${(sender.account?.balance! - amount).toLocaleString()}`,
+      message: `You've successfully transferred ₦${amount} to ${recipient.user.firstName} ${recipient.user.lastName}. Your new balance is ₦${(sender.account?.balance! - amount).toLocaleString()}`,
     };
   }
 
@@ -128,11 +148,15 @@ export class BankingService {
     // Create Mahmud
     await this.prisma.user.create({
       data: {
-        name: 'Mahmud',
-        phone: '08012345678',
-        pin: '1234',
+        firstName: 'Mahmud',
+        lastName: 'Adegboyega',
+        email: 'mahmud.adegboyega@gmail.com',
+        phone: '08164247735',
+        password: 'Qvcdni32$3%',
+        pin: '42748329',
         account: {
           create: {
+            accountNumber: '2849374583',
             balance: 50000,
             transactions: {
               create: [
@@ -151,11 +175,15 @@ export class BankingService {
     // Create Emeka (so you can test transfers)
     await this.prisma.user.create({
       data: {
-        name: 'Emeka',
-        phone: '08087654321',
+        firstName: 'Sayyid',
+        lastName: 'Abdullah',
+        email: 'adegboyegamsen2024@futa.edu.ng',
+        phone: '08053112170',
+        password: 'wdbj@32cS',
         pin: '5678',
         account: {
           create: {
+            accountNumber: '4321894509',
             balance: 20000,
             transactions: {
               create: [

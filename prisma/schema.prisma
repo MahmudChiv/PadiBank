@@ -22,8 +22,8 @@ model User {
   password              String    
   pin                   String  
   otp                   String?
-  onboardingComplete    Boolean
-  createdAt             DateTime  @default(now())
+  onboardingComplete    Boolean                     @default(false)
+  createdAt             DateTime                    @default(now())
   account               Account?
 }
 
