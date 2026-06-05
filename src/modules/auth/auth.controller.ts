@@ -35,7 +35,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @Post('email')
   async verifyEmail(@Body('code') code: string, @Request() req) {
-    const result = this.authService.verifyEmail(req.user.phone, code);
+    const result = await this.authService.verifyEmail(req.user.phone, code);
   }
 
   @Post('login')
