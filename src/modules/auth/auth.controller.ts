@@ -25,7 +25,7 @@ export class AuthController {
     res.cookie('accessToken', result.accessToken, {
       maxAge: 60 * 60 * 1000,
       secure: true,
-      sameSite: 'lax',
+      sameSite: 'none',
       httpOnly: true,
     });
 
@@ -35,7 +35,7 @@ export class AuthController {
   @UseGuards(JwtGuard)
   @Post('email')
   async verifyEmail(@Body('code') code: string, @Request() req) {
-    const result = this.authService.verifyEmail(req.user.phone, code);
+    return await this.authService.verifyEmail(req.user.phone, code);
   }
 
   @Post('login')
@@ -48,7 +48,7 @@ export class AuthController {
     res.cookie('accessToken', result.accessToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: 24 * 60 * 60 * 1000,
     });
 
@@ -57,7 +57,11 @@ export class AuthController {
 
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('accessToken');
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+    });
     return { message: 'Logged out successfully' };
   }
 }

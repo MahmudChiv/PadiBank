@@ -107,6 +107,12 @@ export class AuthService {
 
     return {
       accessToken: token,
+      user: {
+        id: newUser.id,
+        name: `${newUser.firstName} ${newUser.lastName}`,
+        phone: newUser.phone,
+        balance: 0,
+      },
       message: `You've successfully signed up, proceed to verify your email`,
     };
   }
